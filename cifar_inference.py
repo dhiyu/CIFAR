@@ -20,6 +20,7 @@ conv2_deep = 64
 conv2_size = 5
 
 fc_size = 512
+fc2_size = 128
 
 
 def inference(input_tensor, train, regularizer):
@@ -31,7 +32,7 @@ def inference(input_tensor, train, regularizer):
         relu1 = tf.nn.relu(tf.nn.bias_add(conv1, conv1_biases))
     # 输出32*32*32 矩阵
     with tf.name_scope('layer2-pool1'):
-            pool1 = tf.nn.max_pool(relu1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+        pool1 = tf.nn.max_pool(relu1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
     # 输出16*16*32矩阵
     with tf.variable_scope('layer3-conv2'):
         conv2_weights = tf.get_variable(name="weight", shape=[conv2_size, conv2_size, conv1_deep, conv2_deep], initializer=tf.truncated_normal_initializer(stddev=0.1))
@@ -42,9 +43,9 @@ def inference(input_tensor, train, regularizer):
     with tf.name_scope('layer4-pool2'):
         pool2 = tf.nn.max_pool(relu2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
-    pool_shape = pool2.get_shape().as_list()
-    nodes = pool_shape[1] * pool_shape[2] * pool_shape[3]
-    reshaped = tf.reshape(pool2, [pool_shape[0], nodes])
+        pool_shape = pool2.get_shape().as_list()
+        nodes = pool_shape[1] * pool_shape[2] * pool_shape[3]
+        reshaped = tf.reshape(pool2, [pool_shape[0], nodes])
 
     #全连接层
 
@@ -58,10 +59,16 @@ def inference(input_tensor, train, regularizer):
         if train:
             fc1 = tf.nn.dropout(fc1, 0.5)
 
-        with tf.variable_scope('layer6-fc2'):
-            fc2_weights = tf.get_variable("weight", [fc_size, num_labels], initializer=tf.truncated_normal_initializer(stddev=0.1))
-            if regularizer != None:
-                tf.add_to_collection("losses", regularizer(fc2_weights))
-            fc2_biases = tf.get_variable("bias", [num_labels], initializer=tf.constant_initializer(0.1))
-            logit = tf.matmul(fc1, fc2_weights) + fc2_biases
-    return logit
+    with tf.variable_scope('layer6-fc2'):
+        fc2_weights = tf.get_variable("weight", [fc_size, fc2_size], initializer=tf.truncated_normal_initializer(stddev=0.1))
+        if regularizer != None:
+            tf.add_to_collection("losses", regularizer(fc2_weights))
+        fc2_biases = tf.get_variable("bias", [fc2_size], initializer=tf.constant_initializer(0.1))
+        logit = tf.matmul(fc1, fc2_weights) + fc2_biases
+
+    with tf.variable_scope('softmax_linear'):
+        softmax_weights = tf.get_variable('weight', [fc2_size, num_labels],initializer=tf.truncated_normal_initializer(stddev=0.1))
+        softmax_biases = tf.get_variable('biases', [num_labels],initializer=tf.constant_initializer(0.0))
+        softmax_linear = tf.matmul(logit, softmax_weights) + softmax_biases
+
+    return softmax_linear

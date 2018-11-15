@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-
+import cifar_inference
 
 
 input_node = 1024
@@ -18,6 +18,24 @@ conv2_deep = 64
 conv2_size = 5
 
 fc_size = 512
+fc2_size = 128
+
+
+data_route = 'cifar-10-batches-py'
+
+
+def read_data_batch(batchsize=10):
+    reader = tf.TFRecordReader()
+    filename_queue = tf.train.string_input_producer([data_route+'/data_batch.tfrecords'])
+    _, serialized_example = reader.read_up_to(filename_queue, num_records=batchsize)
+    features = tf.parse_example(serialized_example, features={'label': tf.FixedLenFeature([], tf.int64), 'img_raw': tf.FixedLenFeature([], tf.string)})
+    image = tf.decode_raw(features['img_raw'], tf.uint8)
+    image = tf.reshape(image, [batchsize, 32,32,3])
+    label = tf.cast(features['label'], tf.float32)
+    #sess = tf.Session()
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+    return image
 
 
 # 输入3*32*32 3D矩阵
@@ -58,18 +76,23 @@ def inference(input_tensor, train, regularizer):
             fc1 = tf.nn.dropout(fc1, 0.5)
 
         with tf.variable_scope('layer6-fc2'):
-            fc2_weights = tf.get_variable("weight", [fc_size, num_labels], initializer=tf.truncated_normal_initializer(stddev=0.1))
+            fc2_weights = tf.get_variable("weight", [fc_size, fc2_size], initializer=tf.truncated_normal_initializer(stddev=0.1))
             if regularizer != None:
                 tf.add_to_collection("losses", regularizer(fc2_weights))
-            fc2_biases = tf.get_variable("bias", [num_labels], initializer=tf.constant_initializer(0.1))
+            fc2_biases = tf.get_variable("bias", [fc2_size], initializer=tf.constant_initializer(0.1))
             logit = tf.matmul(fc1, fc2_weights) + fc2_biases
-    return logit
+
+        with tf.variable_scope('softmax_linear'):
+            softmax_weights = tf.get_variable('weight', [fc2_size, num_labels],initializer=tf.truncated_normal_initializer(stddev=0.1))
+            softmax_biases = tf.get_variable('biases', [num_labels],initializer=tf.constant_initializer(0.0))
+            softmax_linear = tf.matmul(logit, softmax_weights) + softmax_biases
+
+        return softmax_linear
+
 
 
 with tf.Session() as sess:
-	a = np.ones((6, 32, 32, 3))   # 初始化所有元素为 1
-	input_tensor = tf.convert_to_tensor(a)
-	input_tensor = tf.cast(input_tensor, tf.float32)
-	#sess.run()
-	print(inference(input_tensor, 0, None))
-	print(input_tensor)
+    input_tensor = read_data_batch()
+    input_tensor = tf.cast(input_tensor, tf.float32)
+    print(inference(input_tensor, 0, None))
+    print(input_tensor)
