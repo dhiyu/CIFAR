@@ -22,7 +22,6 @@ conv2_size = 5
 fc_size = 512
 fc2_size = 128
 
-
 def inference(input_tensor, train, regularizer):
     # 输入32*32*3矩阵
     with tf.variable_scope('layer1-conv1'):
@@ -64,11 +63,15 @@ def inference(input_tensor, train, regularizer):
         if regularizer != None:
             tf.add_to_collection("losses", regularizer(fc2_weights))
         fc2_biases = tf.get_variable("bias", [fc2_size], initializer=tf.constant_initializer(0.1))
-        logit = tf.matmul(fc1, fc2_weights) + fc2_biases
+        fc2 = tf.nn.relu(tf.matmul(fc1, fc2_weights) + fc2_biases)
 
-    with tf.variable_scope('softmax_linear'):
-        softmax_weights = tf.get_variable('weight', [fc2_size, num_labels],initializer=tf.truncated_normal_initializer(stddev=0.1))
-        softmax_biases = tf.get_variable('biases', [num_labels],initializer=tf.constant_initializer(0.0))
-        softmax_linear = tf.matmul(logit, softmax_weights) + softmax_biases
+    with tf.variable_scope('layer7-fc3'):
+        fc3_weights = tf.get_variable("weight", [fc2_size, num_labels], initializer=tf.truncated_normal_initializer(stddev=0.1))
+        if regularizer != None:
+            tf.add_to_collection("losses", regularizer(fc3_weights))
+        fc3_biases = tf.get_variable("bias", [num_labels], initializer=tf.constant_initializer(0.1))
+        logit = tf.nn.tanh(tf.matmul(fc2, fc3_weights) + fc3_biases)
 
-    return softmax_linear
+    softmax = tf.nn.softmax(logits=logit)
+
+    return softmax
